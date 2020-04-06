@@ -1,0 +1,108 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.js"></script>
+    <script type="text/javascript" src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>
+    <link rel="stylesheet" href="http://cdn.leafletjs.com/leaflet/v0.7.7/leaflet.css"/>
+    <style>
+        html, body {
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+
+        #map {
+            /* configure the size of the map */
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+
+    var map = L.map('map').setView({lon: 53.25, lat: 56.85}, 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 20,
+        attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+    }).addTo(map);
+    L.control.scale().addTo(map);
+
+</script>
+<script>
+
+    var markers;
+    var polyline;
+    var refreshVehicles = function() {
+        $.ajax({
+            async: true,
+            url: 'activeVehicles',
+            dataType: 'text',
+            cache: false,
+            timeout: 10000,
+
+            success: function(result, textStatus, XMLHttpRequest) {
+                var json = $.parseJSON(result);
+                vehicles =[];
+                for (i in json) {
+                    var vehicle = json[i];
+                    marker = new L.marker({lon: vehicle.coords[0].x, lat: vehicle.coords[0].y},{vehicleid:(vehicle.id), coordid: (vehicle.coords[0].id) })
+                            .bindPopup(vehicle.model + ' ' + vehicle.color + '<br/>' + vehicle.regNumber)
+                            .on('contextmenu', function(e) {
+                                showRoute(this.options.vehicleid, this.options.coordid);
+                            });
+                    vehicles.push(marker);
+                }
+                if(markers) {
+                    markers.clearLayers();
+                }
+                markers = L.featureGroup(vehicles).addTo(map);
+                setTimeout(refreshVehicles, 10000);
+            },
+
+            error: function(XMLHttpRequest, textStatus, errorThrown) {
+                console.log('error -- textStatus: ' + textStatus + ",\nXHR.readyState: " + XMLHttpRequest.readyState + ",\nXHT.status: " + XMLHttpRequest.status);
+                setTimeout(refreshVehicles, 10000);
+            }
+        });
+    };
+
+    window.onload = refreshVehicles;
+
+    function showRoute(vehicleid, coordid){
+        if(polyline) {
+            map.removeLayer(polyline);
+            if (vehicleid === polyline.options.vehicleid) {
+                polyline = null;
+                return;
+            }
+            polyline = null;
+        }
+        $.ajax({
+            async: true,
+            //url: 'vehicle/' + vehicleid,
+            url: 'vehicle/' + vehicleid + '/coord/' + coordid ,
+            dataType: 'text',
+            cache: false,
+            timeout: 3000,
+            success: function (result, textStatus, XMLHttpRequest) {
+                var json = $.parseJSON(result);
+                coords =[];
+                for (i in json.coords) {
+                    var coord = [json.coords[i].y, json.coords[i].x];
+                    coords.push(coord);
+                }
+                polyline = L.polyline(coords, {color: 'red' , vehicleid: (vehicleid), coordid: (coordid)}).addTo(map);
+            },
+            error: function (XMLHttpRequest, textStatus, errorThrown) {
+                console.log('error -- textStatus: ' + textStatus + ",\nXHR.readyState: " + XMLHttpRequest.readyState + ",\nXHT.status: " + XMLHttpRequest.status);
+            }
+        });
+    }
+
+</script>
+</body>
+</html>
